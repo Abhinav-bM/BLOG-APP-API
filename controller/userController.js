@@ -1,5 +1,6 @@
 const User = require("../model/userModel");
 const Blog = require("../model/blogModel");
+const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const cloudinary = require("../config/cloudinary");
 const bcrypt = require("bcryptjs");
@@ -13,6 +14,8 @@ const userSignup = async (req, res) => {
 
     const existingUser = await User.findOne({ email });
 
+    const bcryptedPass = await bcrypt.hash(password, 10);
+
     if (existingUser) {
       res.status(409).json({ error: "Email already exists" });
     }
@@ -20,7 +23,7 @@ const userSignup = async (req, res) => {
     const newUser = {
       name,
       email,
-      password,
+      password: bcryptedPass,
     };
 
     const user = await User(newUser);
@@ -57,7 +60,9 @@ let userLogin = async (req, res) => {
       res.status(404).json({ error: "User not found" });
     }
 
-    if (user.password === password) {
+    const validPassword = await bcrypt.compare(password, user.password);
+
+    if (validPassword) {
       const accessToken = jwt.sign({ user }, jwtSecret, {
         expiresIn: "15s",
       });
@@ -122,7 +127,7 @@ const createBlog = async (req, res) => {
     await blog.save();
     res.status(200).json(blog);
   } catch (err) {
-    console.error(err.message);
+    console.error(err);
     res.status(500).send("Server error");
   }
 };
@@ -174,6 +179,17 @@ const deleteBlog = async (req, res) => {
     res
       .status(500)
       .json({ error: "An error occurred while deleting the blog" });
+  }
+};
+
+// GET ALL BLOGS
+const getAllBlogs = async (req, res) => {
+  try {
+    const blogs = await Blog.find();
+    res.status(200).json(blogs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -365,19 +381,68 @@ const followUnfollowUser = async (req, res) => {
       );
       await user.save();
       await targetUser.save();
-      return res.status(200).json({ message : "User unfollowed successfully" });
-
+      return res.status(200).json({ message: "User unfollowed successfully" });
     } else {
       // FOLLOW
       user.following.push(req.params.id);
       targetUser.followers.push(req.user._id);
       await user.save();
       await targetUser.save();
-      return res.status(200).json({  message : "User followed successfully" });
+      return res.status(200).json({ message: "User followed successfully" });
     }
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
+  }
+};
+
+// GET FOLLOWERS
+const getFollowers = async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user._id);
+
+    const followers = await User.aggregate([
+      { $match: { _id: userId } },
+      { $unwind: "$followers" },
+      {
+        $lookup: {
+          from: "users",
+          localField: "followers",
+          foreignField: "_id",
+          as: "result",
+        },
+      },
+      { $project: { _id: 0, name: 1 } },
+    ]);
+    res.status(200).json(followers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// GET FOLLOWING
+const getFollowing = async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user._id);
+
+    const followers = await User.aggregate([
+      { $match: { _id: userId } },
+      { $unwind: "$following" },
+      {
+        $lookup: {
+          from: "users",
+          localField: "following",
+          foreignField: "_id",
+          as: "result",
+        },
+      },
+      { $project: { _id: 0, name: 1 } },
+    ]);
+    res.status(200).json(followers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -388,6 +453,7 @@ module.exports = {
   createBlog,
   updateBlog,
   deleteBlog,
+  getAllBlogs,
   addComment,
   editComment,
   deleteComment,
@@ -395,4 +461,6 @@ module.exports = {
   editReview,
   deleteReview,
   followUnfollowUser,
+  getFollowers,
+  getFollowing,
 };
