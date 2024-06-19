@@ -26,10 +26,10 @@ const userSignup = async (req, res) => {
     const user = await User(newUser);
     user.save();
 
-    const accessToken = jwt.sign({ user }, process.env.jwtSecret, {
+    const accessToken = jwt.sign({ user }, jwtSecret, {
       expiresIn: "15s",
     });
-    const refreshToken = jwt.sign({ user }, process.env.jwtSecret, {
+    const refreshToken = jwt.sign({ user }, jwtSecret, {
       expiresIn: "1d",
     });
 
@@ -80,6 +80,19 @@ let userLogin = async (req, res) => {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
   }
+};
+
+// USER LOGOUT
+const userLogout = (req, res) => {
+  const user = req.user;
+  if (!user) {
+    return res.status(401).send("Unauthorized");
+  }
+  res
+    .clearCookie("refreshToken")
+    .clearCookie("accessToken")
+    .status(200)
+    .send("Logged out successfully");
 };
 
 // CREATE NEW BLOG
@@ -187,40 +200,198 @@ const addComment = async (req, res) => {
   }
 };
 
-// EDIT COMMENT 
-const editComment = async () =>{
+// EDIT COMMENT
+const editComment = async (req, res) => {
   try {
-    const {comment} = req.body
-    const blog = await Blog.findById({_id:req.params.blogId})
+    const { comment } = req.body;
+    const blog = await Blog.findById({ _id: req.params.blogId });
 
-    if(!blog){
-      res.status(404).json({message : "Blog not found"})
+    if (!blog) {
+      res.status(404).json({ message: "Blog not found" });
     }
 
-    const existingComment = blog.comments.find(comment => comment._id === req.params.commentId)
-    if(!existingComment){
-      res.status(404).json({message : "Comment not found"})
+    const existingComment = blog.comments.find(
+      (comment) => comment._id.toString() === req.params.commentId
+    );
+    if (!existingComment) {
+      res.status(404).json({ message: "Comment not found" });
     }
 
-    if(existingComment.user !== req.user._id){
-      res.status(404).json({message : 'User not authorized'})
+    console.log("existing comment ; ", existingComment);
+
+    if (existingComment.user.toString() !== req.user._id) {
+      res.status(404).json({ message: "User not authorized" });
     }
 
-    existingComment.text = comment
-    await blog.save()
-    res.status(200).json({message : "Comment edited successfully"})
+    existingComment.text = comment;
+    await blog.save();
+    res.status(200).json({ message: "Comment edited successfully" });
   } catch (error) {
-    console.error(error)
-    res.status(500).json({error: "Internal server error"})
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
   }
-}
+};
+
+// DELETE COMMENT
+const deleteComment = async (req, res) => {
+  try {
+    const blog = await Blog.findById({ _id: req.params.blogId });
+
+    if (!blog) {
+      res.status(404).json({ message: "blog not found" });
+    }
+
+    const commentIndex = blog.comments.findIndex(
+      (comment) => comment._id.toString() === req.params.commentId
+    );
+
+    if (commentIndex === -1) {
+      res.status(404).json({ message: "comment not found" });
+    }
+
+    blog.comments.splice(commentIndex, 1);
+    await blog.save();
+    res.status(200).json({ message: "comment deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// ADD REVIEW
+const addReview = async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.blogId);
+    if (!blog) {
+      return res.status(404).json({ error: "Blog not found" });
+    }
+    const review = {
+      user: req.user._id,
+      rating: req.body.rating,
+      content: req.body.content,
+    };
+    blog.reviews.push(review);
+    await blog.save();
+    res.status(201).json({ message: "Review added successfully" });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while adding the review" });
+  }
+};
+
+// EDIT REVIEW
+const editReview = async (req, res) => {
+  const { rating, content } = req.body;
+  try {
+    const blog = await Blog.findById(req.params.blogId);
+    if (!blog) {
+      return res.status(404).json({ message: "Blog not found" });
+    }
+
+    const review = blog.reviews.find(
+      (review) => review.id === req.params.reviewId
+    );
+
+    if (!review) {
+      return res.status(404).json({ message: "Review not found" });
+    }
+
+    if (review.user.toString() !== req.user._id) {
+      return res.status(401).json({ message: "User not authorized" });
+    }
+
+    review.rating = rating;
+    review.content = content;
+    await blog.save();
+    res.status(200).json({ message: "review edited successfully" });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// DELETE REVIEW
+const deleteReview = async (req, res) => {
+  try {
+    const blog = await Blog.findById({ _id: req.params.blogId });
+
+    if (!blog) {
+      res.status(404).json({ message: "Blog not found" });
+    }
+
+    const review = blog.reviews.find(
+      (review) => review._id.toString() === req.params.reviewId
+    );
+
+    if (!review) {
+      res.status(404).json({ message: "Review not found" });
+    }
+
+    if (review.user.toString() !== req.user._id) {
+      res.status(401).json({ message: "User not authorized" });
+    }
+
+    blog.reviews = blog.reviews.filter(
+      (review) => review._id.toString() !== req.params.reviewId
+    );
+
+    await blog.save();
+    res.status(200).json({ message: "revew deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "internal server error" });
+  }
+};
+
+// FOLLOW USER
+const followUnfollowUser = async (req, res) => {
+  try {
+    const user = await User.findById({ _id: req.user._id });
+    const targetUser = await User.findById({ _id: req.params.id });
+
+    if (!targetUser) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    if (user.following.includes(req.params.id)) {
+      // UNFOLLOW
+      user.following = user.following.filter(
+        (followingId) => followingId.toString() !== req.params.id
+      );
+      targetUser.followers = targetUser.followers.filter(
+        (followerId) => followerId.toString() !== req.user._id
+      );
+      await user.save();
+      await targetUser.save();
+      return res.status(200).json({ msg: "User unfollowed successfully" });
+    } else {
+      // FOLLOW
+      user.following.push(req.params.id);
+      targetUser.followers.push(req.user._id);
+      await user.save();
+      await targetUser.save();
+      return res.status(200).json({ msg: "User followed successfully" });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
 
 module.exports = {
   userSignup,
   userLogin,
+  userLogout,
   createBlog,
   updateBlog,
   deleteBlog,
   addComment,
   editComment,
+  deleteComment,
+  addReview,
+  editReview,
+  deleteReview,
+  followUnfollowUser,
 };
