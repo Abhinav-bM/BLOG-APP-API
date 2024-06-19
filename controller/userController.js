@@ -365,14 +365,15 @@ const followUnfollowUser = async (req, res) => {
       );
       await user.save();
       await targetUser.save();
-      return res.status(200).json({ msg: "User unfollowed successfully" });
+      return res.status(200).json({ message : "User unfollowed successfully" });
+
     } else {
       // FOLLOW
       user.following.push(req.params.id);
       targetUser.followers.push(req.user._id);
       await user.save();
       await targetUser.save();
-      return res.status(200).json({ msg: "User followed successfully" });
+      return res.status(200).json({  message : "User followed successfully" });
     }
   } catch (err) {
     console.error(err.message);
