@@ -5,6 +5,7 @@ const upload = require("../config/multer")
 
 const router = express.Router();
 
+
 router.get("/getAllBlogs",authenticate, userController.getAllBlogs)
 router.get("/getFollowers", authenticate, userController.getFollowers)
 router.get("/getFollowing", authenticate, userController.getFollowing)

@@ -14,11 +14,11 @@ const userSignup = async (req, res) => {
 
     const existingUser = await User.findOne({ email });
 
-    const bcryptedPass = await bcrypt.hash(password, 10);
-
     if (existingUser) {
       res.status(409).json({ error: "Email already exists" });
     }
+
+    const bcryptedPass = await bcrypt.hash(password, 10);
 
     const newUser = {
       name,
@@ -104,8 +104,6 @@ const userLogout = (req, res) => {
 const createBlog = async (req, res) => {
   const { title, content } = req.body;
   let imageData = req.files;
-  console.log("title content :", title, content);
-  console.log("imgae data :", imageData);
 
   let imageUrl = "";
 
@@ -136,9 +134,6 @@ const createBlog = async (req, res) => {
 const updateBlog = async (req, res) => {
   const { title, content } = req.body;
   let imageData = req.files;
-  console.log("title content :", title, content);
-  console.log("imgae data :", imageData);
-  console.log("blog id : ", req.params.id);
 
   let imageUrl = "";
 
@@ -197,7 +192,7 @@ const getAllBlogs = async (req, res) => {
 const addComment = async (req, res) => {
   try {
     const { comment } = req.body;
-    console.log(comment);
+    
     const blog = await Blog.findById({ _id: req.params.id });
 
     if (!blog) {
@@ -232,8 +227,6 @@ const editComment = async (req, res) => {
     if (!existingComment) {
       res.status(404).json({ message: "Comment not found" });
     }
-
-    console.log("existing comment ; ", existingComment);
 
     if (existingComment.user.toString() !== req.user._id) {
       res.status(404).json({ message: "User not authorized" });
@@ -361,7 +354,7 @@ const deleteReview = async (req, res) => {
   }
 };
 
-// FOLLOW USER
+// FOLLOW UNFOLLOW USER
 const followUnfollowUser = async (req, res) => {
   try {
     const user = await User.findById({ _id: req.user._id });
@@ -445,6 +438,7 @@ const getFollowing = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 module.exports = {
   userSignup,
